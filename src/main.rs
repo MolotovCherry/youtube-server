@@ -6,7 +6,7 @@ use std::path::Path as StdPath;
 
 use axum::{
     extract::Path,
-    http::{header, StatusCode},
+    http::{header, HeaderName, StatusCode},
     response::IntoResponse,
     routing::get,
     Router,
@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn get_index() -> impl IntoResponse {
+fn _get_index_internal() -> (StatusCode, [(HeaderName, &'static str); 1], &'static [u8]) {
     let (status, content, content_type) = {
         if let Some(file) = PIPED_SRC.get_file("index.html") {
             let is_binary = file.contents_utf8().is_none();
@@ -54,22 +54,26 @@ async fn get_index() -> impl IntoResponse {
             if is_binary {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "500 Internal Server Error: Your index.html is binary .. What?",
+                    "500 Internal Server Error: Your index.html is binary .. What?".as_bytes(),
                     "text/plain",
                 )
             } else {
-                (StatusCode::OK, file.contents_utf8().unwrap(), "text/html")
+                (StatusCode::OK, file.contents(), "text/html")
             }
         } else {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "500 Internal Server Error: Your dist directory doesn't have an index.html. Please fix the dist dir and rebuild",
+                "500 Internal Server Error: Your dist directory doesn't have an index.html. Please fix the dist dir and rebuild".as_bytes(),
                 "text/plain",
             )
         }
     };
 
     (status, [(header::CONTENT_TYPE, content_type)], content)
+}
+
+async fn get_index() -> impl IntoResponse {
+    _get_index_internal()
 }
 
 async fn get_file(Path(path): Path<String>) -> impl IntoResponse {
@@ -81,7 +85,8 @@ async fn get_file(Path(path): Path<String>) -> impl IntoResponse {
                 file.contents_utf8().is_none(),
             )
         } else {
-            (StatusCode::NOT_FOUND, "Not found".as_bytes(), false)
+            // It's best to just return the index page if not found and let everything else be handled
+            return _get_index_internal();
         }
     };
 
