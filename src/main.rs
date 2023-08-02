@@ -1,3 +1,9 @@
+// Only turn off console on windows when we are not in debug mode
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
 mod cli;
 mod content;
 
