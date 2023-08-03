@@ -1,3 +1,6 @@
 [submodule "piped"]
 	path = piped
 	url = https://github.com/TeamPiped/Piped
+[submodule "piped-backend"]
+	path = piped-backend
+	url = https://github.com/TeamPiped/Piped-Backend/
