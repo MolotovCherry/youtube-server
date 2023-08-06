@@ -83,7 +83,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .unwrap();
     }
 
-    // nasty hack to get to the build exe path
+    // get path to piped jar, hash it, and make a rust file containing it
     let out_dir = env::var("OUT_DIR").unwrap();
     let out_dir = Path::new(&out_dir);
     let mut build_piped_jar = build_dir.join("libs");
