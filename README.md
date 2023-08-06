@@ -9,9 +9,5 @@ This project takes [piped](https://github.com/TeamPiped/Piped) and makes it easy
 
 ## Building
 
-You need node and `pnpm` installed first. You also need [Rust installed](https://rustup.rs/)
-1. Run `pnpm -C piped install`
-2. Run `pnpm -C piped build`
-3. Run `cargo build --release`
-
-Note: There's `build-piped` scripts for windows/linux to execute the first 2 commands automatically
+You need node and `pnpm` installed first (and in your PATH). You also need [Rust installed](https://rustup.rs/)
+- Run `cargo build --release`

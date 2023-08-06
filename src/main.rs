@@ -1,13 +1,12 @@
-// Only turn off console on windows when we are not in debug mode
-#![cfg_attr(
-    all(target_os = "windows", not(debug_assertions)),
-    windows_subsystem = "windows"
-)]
-
-mod cli;
+mod backend;
+mod config;
 mod content;
+mod proxy;
+mod resolver;
 
-use std::net::IpAddr;
+// include generated hash file
+include!(concat!(env!("OUT_DIR"), "/hash.rs"));
+
 use std::path::Path as StdPath;
 
 use axum::{
@@ -17,37 +16,61 @@ use axum::{
     routing::get,
     Router,
 };
-use clap::Parser;
 use include_dir::{include_dir, Dir};
-
-use cli::Cli;
 
 use crate::content::get_content_type;
 
 // the entire website files
 static PIPED_SRC: Dir = include_dir!("$CARGO_MANIFEST_DIR/piped/dist");
 
+static PIPED_JAR: &[u8] = include_bytes!("../piped-backend/build/libs/piped-1.0-all.jar");
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let cli = Cli::parse();
+    let config = config::Config::get_config()?;
 
-    let ip = match cli.ip {
-        IpAddr::V4(ip) => ip.to_string(),
-        // must be in brackets for the port to work
-        IpAddr::V6(ip) => format!("[{}]", ip),
-    };
+    // start backend, but keep it open as long as the frontend is open for
+    backend::run_backend()?;
 
-    let port = cli.port;
+    // frontend
+    tokio::spawn(async move {
+        // index.html @ /
+        let app = Router::new()
+            .route("/", get(get_index))
+            .route("/*file", get(get_file));
 
-    // index.html @ /
-    let app = Router::new()
-        .route("/", get(get_index))
-        .route("/*file", get(get_file));
+        let frontend_addr = resolver::get_addresses(&config.addresses.frontend)
+            .expect("Failed to resolve frontend address");
+        #[allow(clippy::if_same_then_else)]
+        let frontend_addr = if config.addresses.use_ipv6.as_ref().is_some_and(|i| *i) {
+            frontend_addr.ipv6.as_ref()
+        } else if matches!(frontend_addr.ipv6.as_ref(), Some(_)) {
+            frontend_addr.ipv6.as_ref()
+        } else {
+            frontend_addr.ipv4.as_ref()
+        }
+        .expect("Failed to resolve frontend address");
 
-    axum::Server::bind(&format!("{ip}:{port}").parse().unwrap())
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+        axum::Server::bind(frontend_addr)
+            .serve(app.into_make_service())
+            .await
+            .unwrap();
+    });
+
+    let proxy_addr =
+        resolver::get_addresses(&config.addresses.proxy).expect("Failed to resolve proxy address");
+    #[allow(clippy::if_same_then_else)]
+    let proxy_addr = if config.addresses.use_ipv6.as_ref().is_some_and(|i| *i) {
+        proxy_addr.ipv6.as_ref()
+    } else if matches!(proxy_addr.ipv6.as_ref(), Some(_)) {
+        proxy_addr.ipv6.as_ref()
+    } else {
+        proxy_addr.ipv4.as_ref()
+    }
+    .expect("Failed to resolve frontend address");
+
+    // proxy
+    proxy::start_proxy(proxy_addr).await?;
 
     Ok(())
 }
