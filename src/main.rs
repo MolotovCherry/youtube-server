@@ -1,3 +1,4 @@
+mod assets;
 mod backend;
 mod config;
 mod content;
@@ -28,6 +29,9 @@ static PIPED_JAR: &[u8] = include_bytes!("../piped-backend/build/libs/piped-1.0-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config = config::Config::get_config()?;
+
+    // build patched runtime assets for the frontend
+    assets::patch_assets(&config);
 
     // start backend, but keep it open as long as the frontend is open for
     backend::run_backend()?;
@@ -107,7 +111,10 @@ async fn get_index() -> impl IntoResponse {
 
 async fn get_file(Path(path): Path<String>) -> impl IntoResponse {
     let (status, content, is_binary) = {
-        if let Some(file) = PIPED_SRC.get_file(&path) {
+        if let Some(asset) = assets::get_patched_asset(&path) {
+            // these are only strings due to how they were patched, so just default ot false
+            (StatusCode::OK, asset.as_bytes(), false)
+        } else if let Some(file) = PIPED_SRC.get_file(&path) {
             (
                 StatusCode::OK,
                 file.contents(),
