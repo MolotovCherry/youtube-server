@@ -19,7 +19,7 @@ pub fn get_addresses(addr: &str) -> anyhow::Result<Addresses> {
     let host = ac.replace_all(addr, replace_with);
 
     let mut addresses = Addresses::default();
-    host.to_socket_addrs()?.into_iter().for_each(|s| match s {
+    host.to_socket_addrs()?.for_each(|s| match s {
         a @ SocketAddr::V4(_) => {
             addresses.ipv4 = Some(a);
         }
