@@ -5,6 +5,9 @@ This project takes [piped](https://github.com/TeamPiped/Piped) and makes it easy
 ## Config
 On the first run, a config will be generated in the same folder as the executable. Alter it to your liking. For more options, please see [config.rs](src/config.rs)
 
+## Running
+To run this, you need Java installed (and on PATH). You also need to install [PostgreSQL](https://www.postgresql.org/download/), and configure a server for the db connection
+
 ## Building
 
 You need node and `pnpm` installed first (and in your PATH). You also need [Rust installed](https://rustup.rs/) as well as java installed (and on the PATH)
