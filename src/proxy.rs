@@ -75,7 +75,7 @@ fn is_header_allowed(header: &str) -> bool {
     )
 }
 
-pub async fn index(req: HttpRequest) -> Result<HttpResponse, Box<dyn Error>> {
+async fn index(req: HttpRequest) -> Result<HttpResponse, Box<dyn Error>> {
     if req.method() == Method::OPTIONS {
         let mut response = HttpResponse::Ok();
         add_headers(&mut response);
@@ -98,6 +98,7 @@ pub async fn index(req: HttpRequest) -> Result<HttpResponse, Box<dyn Error>> {
 
     let rewrite = query.get("rewrite") != Some("false");
 
+    #[cfg(feature = "avif")]
     let avif = query.get("avif") == Some("true");
 
     let host = res.unwrap();
@@ -174,6 +175,7 @@ pub async fn index(req: HttpRequest) -> Result<HttpResponse, Box<dyn Error>> {
 
     if rewrite {
         if let Some(content_type) = resp.headers().get("content-type") {
+            #[cfg(feature = "avif")]
             if content_type == "image/webp" || content_type == "image/jpeg" && avif {
                 use ravif::{Encoder, Img};
                 use rgb::FromSlice;
@@ -204,6 +206,7 @@ pub async fn index(req: HttpRequest) -> Result<HttpResponse, Box<dyn Error>> {
                 };
             }
 
+            #[cfg(feature = "webp")]
             if content_type == "image/jpeg" {
                 use libwebp_sys::{WebPEncodeRGB, WebPFree};
 

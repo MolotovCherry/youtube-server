@@ -1,13 +1,16 @@
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+    thread::{self, JoinHandle},
+};
 
 use anyhow::anyhow;
 use directories::ProjectDirs;
-use tokio::task::{self, JoinHandle};
 
 use crate::hash::JAR_HASH;
 
 pub fn run_backend() -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
-    let handle = task::spawn_blocking(|| {
+    let handle = thread::spawn(|| {
         // it would've been great to use graalvm for this and compile to a shared lib,
         // which I spent an entire day on, but it turns out there's just too many resource configs,
         // proxy configs, etc etc etc, it's too much and way too hard to get working.
