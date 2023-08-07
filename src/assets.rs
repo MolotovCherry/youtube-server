@@ -21,7 +21,9 @@ pub fn patch_assets(config: &Config) {
     for file in dir.files() {
         if let Some(contents) = file.contents_utf8() {
             let replaced = ac.replace_all(contents, replace_with);
-            hashmap.insert(file.path().to_str().unwrap().to_string(), replaced);
+            if contents != replaced {
+                hashmap.insert(file.path().to_str().unwrap().to_string(), replaced);
+            }
         }
     }
 
