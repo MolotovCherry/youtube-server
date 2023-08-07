@@ -21,3 +21,15 @@ Check and clear your browsers local storage. It likes to save the custom instanc
 
 ### How do I make a postgresql database for this?
 Open pgadmin, make a new database called "piped" (you can choose any name really), a new user (make sure to allow them to login), and set user privileges to All for that db. Here's a [tutorial](http://youtu.be:8080/watch?v=oNJpktM65eY). After, just update the connection string with your ip (usually localhost), username, and password you just made
+
+### I don't want to use postgresql! Is there an alternative?
+It is possible for you to use hsqldb, but this only receives limited testing and is not guaranteed to work, so you use it at your own risk. Use the following values in the config
+```toml
+db_connection_url = "jdbc:hsqldb:mem:memdb;sql.syntax_pgs=true"
+db_connection_driver = "org.hsqldb.jdbcDriver"
+db_dialect = "org.hibernate.dialect.HSQLDialect"
+```
+If you want a persistent db (instead of losing it when the process dies), you could try:
+```toml
+db_connection_url = "jdbc:hsqldb:file:/file/path/to/your.db;sql.syntax_pgs=true"
+```

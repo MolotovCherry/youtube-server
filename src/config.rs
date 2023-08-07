@@ -107,10 +107,21 @@ impl Config {
         );
         env::set_var("hibernate.connection.username", &config.backend.db_username);
         env::set_var("hibernate.connection.password", &config.backend.db_password);
-        env::set_var("hibernate.connection.driver_class", "org.postgresql.Driver");
+        env::set_var(
+            "hibernate.connection.driver_class",
+            config
+                .backend
+                .db_connection_driver
+                .as_deref()
+                .unwrap_or("org.postgresql.Driver"),
+        );
         env::set_var(
             "hibernate.dialect",
-            "org.hibernate.dialect.PostgreSQLDialect",
+            config
+                .backend
+                .db_dialect
+                .as_deref()
+                .unwrap_or("org.hibernate.dialect.PostgreSQLDialect"),
         );
 
         Ok(config)
@@ -169,6 +180,8 @@ pub struct Backend {
     pub db_connection_url: String,
     pub db_username: String,
     pub db_password: String,
+    pub db_connection_driver: Option<String>,
+    pub db_dialect: Option<String>,
 }
 
 impl Default for Backend {
@@ -203,6 +216,8 @@ impl Default for Backend {
             db_connection_url: "jdbc:postgresql://localhost:5432/piped".to_string(),
             db_username: "piped".to_string(),
             db_password: "piped".to_string(),
+            db_connection_driver: None,
+            db_dialect: None,
         }
     }
 }
