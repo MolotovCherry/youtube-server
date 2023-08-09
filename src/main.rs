@@ -2,13 +2,14 @@ mod assets;
 mod backend;
 mod config;
 mod content;
+mod error_page;
 mod proxy;
 mod resolver;
 
 // include generated hash file
 include!(concat!(env!("OUT_DIR"), "/hash.rs"));
 
-use std::path::Path as StdPath;
+use std::{env, path::Path as StdPath, sync::Arc};
 
 use axum::{
     extract::Path,
@@ -17,6 +18,7 @@ use axum::{
     routing::get,
     Router,
 };
+use axum_server::tls_rustls::RustlsConfig;
 use include_dir::{include_dir, Dir};
 
 use crate::content::get_content_type;
@@ -28,25 +30,26 @@ static PIPED_JAR: &[u8] = include_bytes!("../piped-backend/build/libs/piped-1.0-
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let config = config::Config::get_config()?;
+    let config = Arc::new(config::Config::get_config()?);
 
     // build patched runtime assets for the frontend
     assets::patch_assets(&config);
 
     // start backend, but keep it open as long as the frontend is open for
-    backend::run_backend()?;
+    backend::run_backend(config.clone())?;
 
     // frontend
+    let config2 = config.clone();
     tokio::spawn(async move {
         // index.html @ /
         let app = Router::new()
             .route("/", get(get_index))
             .route("/*file", get(get_file));
 
-        let frontend_addr = resolver::get_addresses(&config.addresses.frontend)
+        let frontend_addr = resolver::get_addresses(&config2.addresses.frontend)
             .expect("Failed to resolve frontend address");
         #[allow(clippy::if_same_then_else)]
-        let frontend_addr = if config.addresses.use_ipv6.as_ref().is_some_and(|i| *i) {
+        let frontend_addr = if config2.addresses.use_ipv6.as_ref().is_some_and(|i| *i) {
             frontend_addr.ipv6.as_ref()
         } else if matches!(frontend_addr.ipv6.as_ref(), Some(_)) {
             frontend_addr.ipv6.as_ref()
@@ -55,26 +58,31 @@ async fn main() -> anyhow::Result<()> {
         }
         .expect("Failed to resolve frontend address");
 
-        axum::Server::bind(frontend_addr)
-            .serve(app.into_make_service())
+        if config2.addresses.use_ssl.as_ref().is_some_and(|i| *i) {
+            let exe_path = env::current_exe().unwrap();
+            let exe_path = exe_path.parent().unwrap();
+
+            let config = RustlsConfig::from_pem_file(
+                exe_path.join(config2.addresses.ssl_cert.as_ref().unwrap()),
+                exe_path.join(config2.addresses.ssl_key.as_ref().unwrap()),
+            )
             .await
             .unwrap();
+
+            axum_server::bind_rustls(*frontend_addr, config)
+                .serve(app.into_make_service())
+                .await
+                .unwrap();
+        } else {
+            axum::Server::bind(frontend_addr)
+                .serve(app.into_make_service())
+                .await
+                .unwrap();
+        }
     });
 
-    let proxy_addr =
-        resolver::get_addresses(&config.addresses.proxy).expect("Failed to resolve proxy address");
-    #[allow(clippy::if_same_then_else)]
-    let proxy_addr = if config.addresses.use_ipv6.as_ref().is_some_and(|i| *i) {
-        proxy_addr.ipv6.as_ref()
-    } else if matches!(proxy_addr.ipv6.as_ref(), Some(_)) {
-        proxy_addr.ipv6.as_ref()
-    } else {
-        proxy_addr.ipv4.as_ref()
-    }
-    .expect("Failed to resolve frontend address");
-
     // proxy
-    proxy::start_proxy(proxy_addr).await?;
+    proxy::start_proxy(&config).await?;
 
     Ok(())
 }

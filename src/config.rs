@@ -38,7 +38,7 @@ impl Config {
             .ok_or(anyhow!("http part missing"))?;
         env::set_var("PORT", port.to_string());
         env::set_var("HTTP_WORKERS", config.backend.http_workers.to_string());
-        env::set_var("PROXY_PART", &config.addresses.proxy);
+        env::set_var("PROXY_PART", config.addresses.proxy_uri());
         if let Some(image_proxy) = &config.backend.image_proxy_part {
             env::set_var("IMAGE_PROXY_PART", image_proxy);
         }
@@ -48,8 +48,8 @@ impl Config {
         if let Some(api_key) = &config.backend.captcha_api_key {
             env::set_var("CAPTCHA_API_KEY", api_key);
         }
-        env::set_var("API_URL", &config.addresses.backend);
-        env::set_var("FRONTEND_URL", &config.addresses.frontend);
+        env::set_var("API_URL", config.addresses.backend_uri());
+        env::set_var("FRONTEND_URL", config.addresses.frontend_uri());
         if let Some(url) = &config.backend.pubsub_url {
             env::set_var("PUBSUB_URL", url);
         }
@@ -224,29 +224,69 @@ impl Default for Backend {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Addresses {
-    // Frontend address (MUST contain http/https prefix, with no ending /)
+    // Frontend host (MUST not contain http/https prefix, with no ending /)
     // Can contain host addresses as well
-    //- eg: http://127.0.0.1:8080 , http://myaddr.com:8080
+    //- eg: 127.0.0.1:8080, myaddr.com:8080
     pub frontend: String,
-    // Backend address (MUST contain http/https prefix, with no ending /)
+    // Backend host (MUST not contain http/https prefix, with no ending /)
     // Can contain host addresses as well
-    //- eg: http://127.0.0.1:8081 , http://myaddr.com:8081
+    //- eg: 127.0.0.1:8081, myaddr.com:8081
     pub backend: String,
     // Proxy (MUST contain http/https prefix, with no ending /)
     // Can contain host addresses as well
-    //- eg: http://127.0.0.1:8082 , http://myaddr.com:8082
+    //- eg: 127.0.0.1:8082, myaddr.com:8082
     pub proxy: String,
+
     // Use ipv6 address (will error if non exists). By default it sticks to ipv4
     pub use_ipv6: Option<bool>,
+    pub use_ssl: Option<bool>,
+    // Proxy to send queries to backend (MUST not contain http/https prefix, with no ending /)
+    // Can contain host addresses as well
+    //- eg: 127.0.0.1:8081, myaddr.com:8081
+    pub backend_ssl_proxy: Option<String>,
+    // must be PEM format
+    pub ssl_cert: Option<String>,
+    // must be PEM format
+    pub ssl_key: Option<String>,
 }
 
 impl Default for Addresses {
     fn default() -> Self {
         Self {
             use_ipv6: None,
-            frontend: "http://localhost:8080".to_string(),
-            backend: "http://localhost:8081".to_string(),
-            proxy: "http://localhost:8082".to_string(),
+            frontend: "localhost:8080".to_string(),
+            backend: "localhost:8081".to_string(),
+            proxy: "localhost:8082".to_string(),
+            use_ssl: None,
+            ssl_cert: None,
+            ssl_key: None,
+            backend_ssl_proxy: None,
         }
+    }
+}
+
+impl Addresses {
+    fn http_part(&self) -> &'static str {
+        if self.use_ssl.as_ref().is_some_and(|b| *b) {
+            "https://"
+        } else {
+            "http://"
+        }
+    }
+
+    pub fn frontend_uri(&self) -> String {
+        format!("{}{}", self.http_part(), self.frontend)
+    }
+
+    pub fn backend_uri(&self) -> String {
+        format!("http://{}", self.backend)
+    }
+
+    pub fn proxy_uri(&self) -> String {
+        format!("{}{}", self.http_part(), self.proxy)
+    }
+
+    pub fn backend_ssl_proxy_uri(&self) -> Option<String> {
+        Some(format!("https://{}", self.backend_ssl_proxy.as_ref()?))
     }
 }

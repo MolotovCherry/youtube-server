@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::{env, net::SocketAddr};
+use std::{env, io::BufReader};
 
 use actix_web::http::Method;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer};
@@ -7,14 +7,53 @@ use once_cell::sync::Lazy;
 use qstring::QString;
 use regex::Regex;
 use reqwest::{Body, Client, Request, Url};
+use rustls::{server::ServerConfig, Certificate, PrivateKey};
+use rustls_pemfile::{certs, rsa_private_keys};
 
-pub async fn start_proxy(address: &SocketAddr) -> std::io::Result<()> {
+use crate::{config::Config, resolver};
+
+pub async fn start_proxy(config: &Config) -> std::io::Result<()> {
     let server = HttpServer::new(|| {
         // match all requests
         App::new().default_service(web::to(index))
     });
 
-    server.bind(address)?.run().await
+    let proxy_addr =
+        resolver::get_addresses(&config.addresses.proxy).expect("Failed to resolve proxy address");
+    #[allow(clippy::if_same_then_else)]
+    let proxy_addr = if config.addresses.use_ipv6.as_ref().is_some_and(|i| *i) {
+        proxy_addr.ipv6.as_ref()
+    } else if matches!(proxy_addr.ipv6.as_ref(), Some(_)) {
+        proxy_addr.ipv6.as_ref()
+    } else {
+        proxy_addr.ipv4.as_ref()
+    }
+    .expect("Failed to resolve frontend address");
+
+    if config.addresses.use_ssl.as_ref().is_some_and(|i| *i) {
+        let cert_file = std::fs::read(config.addresses.ssl_cert.as_ref().unwrap()).unwrap();
+        let key_file = std::fs::read(config.addresses.ssl_key.as_ref().unwrap()).unwrap();
+
+        let cert_file = &mut BufReader::new(&*cert_file);
+        let key_file = &mut BufReader::new(&*key_file);
+
+        let cert_chain = certs(cert_file)
+            .unwrap()
+            .into_iter()
+            .map(Certificate)
+            .collect();
+        let mut keys = rsa_private_keys(key_file).unwrap();
+
+        let rustls_config = ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(cert_chain, PrivateKey(keys.remove(0)))
+            .unwrap();
+
+        server.bind_rustls(proxy_addr, rustls_config)?.run().await
+    } else {
+        server.bind(proxy_addr)?.run().await
+    }
 }
 
 static RE_DOMAIN: Lazy<Regex> =

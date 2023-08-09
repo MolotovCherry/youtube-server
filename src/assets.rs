@@ -11,7 +11,16 @@ pub fn patch_assets(config: &Config) {
     // replace all matches to default backend isntance with new backend instance address
     // https://github.com/TeamPiped/Piped-Docker/blob/main/template/docker-compose.nginx.yml#L10
     let patterns = &["https://pipedapi.kavin.rocks"];
-    let replace_with = &[&*config.addresses.backend];
+
+    // backend address
+    let address = if config.addresses.use_ssl.as_ref().is_some_and(|i| *i) {
+        // must use an ssl proxy since backend is always http
+        config.addresses.backend_ssl_proxy_uri().unwrap()
+    } else {
+        config.addresses.backend_uri()
+    };
+
+    let replace_with = &[&*address];
 
     let ac = AhoCorasick::new(patterns).unwrap();
 
