@@ -12,7 +12,6 @@ axum = "0.6.19"
 axum-server = { version = "0.5.1", features = ["tls-rustls"] }
 include_dir = "0.7.3"
 anyhow = "1.0.72"
-ravif = "0.11.2"
 rgb = "0.8.36"
 image = "0.24.6"
 libwebp-sys = "0.9.2"
