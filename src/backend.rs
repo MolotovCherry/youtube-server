@@ -89,7 +89,7 @@ pub fn run_backend(config: Arc<Config>) -> anyhow::Result<JoinHandle<anyhow::Res
             #[allow(clippy::if_same_then_else)]
             let backend_addr = if config.addresses.use_ipv6.as_ref().is_some_and(|i| *i) {
                 backend_addr.ipv6.as_ref()
-            } else if matches!(backend_addr.ipv6.as_ref(), Some(_)) {
+            } else if backend_addr.ipv6.as_ref().is_some() {
                 backend_addr.ipv6.as_ref()
             } else {
                 backend_addr.ipv4.as_ref()

@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
         #[allow(clippy::if_same_then_else)]
         let frontend_addr = if config2.addresses.use_ipv6.as_ref().is_some_and(|i| *i) {
             frontend_addr.ipv6.as_ref()
-        } else if matches!(frontend_addr.ipv6.as_ref(), Some(_)) {
+        } else if frontend_addr.ipv6.as_ref().is_some() {
             frontend_addr.ipv6.as_ref()
         } else {
             frontend_addr.ipv4.as_ref()
