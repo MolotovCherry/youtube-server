@@ -2,7 +2,6 @@ mod assets;
 mod backend;
 mod config;
 mod content;
-mod error_page;
 mod proxy;
 mod resolver;
 

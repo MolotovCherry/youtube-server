@@ -7,21 +7,17 @@ use std::{
 use anyhow::anyhow;
 use axum::{
     body::{Body, BoxBody, HttpBody},
-    http::{header, Request},
-    response::{IntoResponse, Response},
+    http::Request,
+    response::Response,
 };
 use axum_server::tls_rustls::RustlsConfig;
 use directories::ProjectDirs;
 use reqwest::{redirect::Policy, Client, StatusCode};
+use serde_json::Value;
 use tokio::task::{self, JoinHandle};
 use tower::make::Shared;
 
-use crate::{
-    config::Config,
-    error_page::{format_error_page, E502},
-    hash::JAR_HASH,
-    resolver,
-};
+use crate::{config::Config, hash::JAR_HASH, resolver};
 
 static REQUEST_DATA: OnceLock<RequestData> = OnceLock::new();
 
@@ -163,12 +159,24 @@ async fn backend_ssl_proxy(req: Request<Body>) -> anyhow::Result<Response<BoxBod
     {
         Ok(res) => res,
         Err(e) => {
-            return Ok((
-                StatusCode::BAD_GATEWAY,
-                [(header::CONTENT_TYPE, "text/html")],
-                format_error_page(E502, e),
-            )
-                .into_response());
+            let error: Value = serde_json::from_str(&format!("{e:?}")).unwrap();
+            let error = serde_json::to_string(&error).unwrap();
+
+            let status_code = if let Some(code) = e.status() {
+                code
+            } else if e.is_timeout() {
+                StatusCode::GATEWAY_TIMEOUT
+            } else if e.is_connect() {
+                StatusCode::BAD_GATEWAY
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+
+            return Ok(Response::builder()
+                .status(status_code)
+                .body(format!(r#"{{"error":"Reqwest error: {error}"}}"#))
+                .unwrap()
+                .map(|b| BoxBody::new(b.map_err(axum::Error::new))));
         }
     };
 
